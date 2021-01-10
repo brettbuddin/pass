@@ -21,7 +21,7 @@ func run() error {
 	var manifestPath string
 	fs := flag.NewFlagSet("pass-stdlib", flag.ExitOnError)
 	fs.StringVar(&manifestPath, "manifest", "", "HCL manifest path")
-	if err := fs.Parse(os.Args); err != nil {
+	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 
