@@ -1,5 +1,8 @@
 # pass
 
+[![Go
+Reference](https://pkg.go.dev/badge/github.com/brettbuddin/pass.svg)](https://pkg.go.dev/github.com/brettbuddin/pass)
+
 Pass is a library for building reverse-proxies. It wraps
 [`httputil.ReverseProxy`](https://golang.org/pkg/net/http/httputil/#ReverseProxy),
 and specifies routing via configuration files.
