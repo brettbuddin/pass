@@ -37,16 +37,16 @@ upstream "widgets" {
     # that should be stripped from outgoing requests. (optional)
     prefix_path = "/private"
 
-    # GET `/api/v2/private/widgets` -> GET `/widgets`
-    # POST `/api/v2/private/widgets` -> PUT `/widgets`
+    # GET `/api/v2/private/widgets` -> GET `http://widgets.local/widgets`
+    # POST `/api/v2/private/widgets` -> POST `http://widgets.local/widgets`
     route {
         methods = ["GET", "POST"]
         path = "/widgets"
     }
 
-    # GET `/api/v2/private/widgets/123` -> GET `/widgets/123`
-    # PUT `/api/v2/private/widgets/123` -> PUT `/widgets/123`
-    # DELETE `/api/v2/private/widgets/123` -> DELETE `/widgets/123`
+    # GET `/api/v2/private/widgets/123` -> GET `http://widgets.local/widgets/123`
+    # PUT `/api/v2/private/widgets/123` -> PUT `http://widgets.local/widgets/123`
+    # DELETE `/api/v2/private/widgets/123` -> DELETE `http://widgets.local/widgets/123`
     route {
         methods = ["GET", "PUT", "DELETE"]
 
