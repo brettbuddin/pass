@@ -18,8 +18,9 @@ import (
 
 // Manifest is a list of upstream services in which to proxy.
 type Manifest struct {
-	Upstreams  []Upstream `hcl:"upstream,block"`       // Upstream route configurations
-	PrefixPath string     `hcl:"prefix_path,optional"` // Prefix to add to all upstream routes. Stripped when proxying.
+	Annotations map[string]string `hcl:"annotations,optional"` // Annotations to be used by other libraries
+	Upstreams   []Upstream        `hcl:"upstream,block"`       // Upstream route configurations
+	PrefixPath  string            `hcl:"prefix_path,optional"` // Prefix to add to all upstream routes. Stripped when proxying.
 }
 
 // Upstream is an upstream service in which to proxy.
@@ -44,6 +45,9 @@ func LoadManifest(filename string, ectx *hcl.EvalContext) (*Manifest, error) {
 	err := hclsimple.DecodeFile(filename, ectx, &m)
 	if err != nil {
 		return nil, err
+	}
+	if m.Annotations == nil {
+		m.Annotations = map[string]string{}
 	}
 	return &m, nil
 }

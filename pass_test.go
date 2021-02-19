@@ -26,6 +26,9 @@ func TestParsing(t *testing.T) {
 
 	expect := &Manifest{
 		PrefixPath: "/api/v2",
+		Annotations: map[string]string{
+			"version": "1",
+		},
 		Upstreams: []Upstream{
 			{
 				Identifier:      "widgets",

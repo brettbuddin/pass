@@ -1,5 +1,9 @@
 prefix_path = "/api/v2"
 
+annotations = {
+    version: 1
+}
+
 upstream "widgets" {
     destination = "http://widgets.${namespace}.local" 
     owner = "Team A <team-a@company.com>"
