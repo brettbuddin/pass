@@ -298,6 +298,13 @@ func TestMissingSchema(t *testing.T) {
 	require.Equal(t, err.Error(), `missing scheme: "noschema.local"`)
 }
 
+func TestEmptyRoot(t *testing.T) {
+	m := &Manifest{}
+	proxy, err := New(m)
+	require.NoError(t, err)
+	require.Equal(t, "/", proxy.Root())
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {

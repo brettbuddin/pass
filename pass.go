@@ -108,10 +108,16 @@ func New(m *Manifest, opts ...MountOption) (*Proxy, error) {
 	return proxy, nil
 }
 
+// Root returns the root specified at Proxy creation + the "prefix_path"
+// specified in the Manifest.
 func (p *Proxy) Root() string {
+	if p.root == "" {
+		return "/"
+	}
 	return p.root
 }
 
+// Upstreams returns the Upstream services registered with this Proxy.
 func (p *Proxy) Upstreams() []Upstream {
 	return p.manifest.Upstreams
 }
