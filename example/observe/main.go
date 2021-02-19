@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/brettbuddin/pass"
-	"github.com/go-chi/chi"
 	"go.uber.org/zap"
 )
 
@@ -40,21 +39,22 @@ func run() error {
 		return err
 	}
 
-	r := chi.NewRouter()
-
-	// Specify and pass a pass.ObserveFunction to perform some logging of the
-	// requests passed upstream.
-	observe := func(r *http.Request, info *pass.RouteInfo) {
+	observeFn := func(r *http.Request, info *pass.RouteInfo) {
 		logger.Info("Proxying",
 			zap.String("host", info.UpstreamHost),
 			zap.String("owner", info.UpstreamOwner),
 			zap.String("method", info.RouteMethod),
 			zap.String("path", info.RoutePath))
 	}
-	err = pass.Mount(m, r, pass.WithObserveFunction(observe))
+	errorHandler := func(w http.ResponseWriter, r *http.Request, err error) {
+		logger.Info("Problem proxying", zap.Error(err))
+		fmt.Fprintln(w, "catastrophic failure!")
+	}
+	proxy, err := pass.New(m,
+		pass.WithObserveFunction(observeFn),
+		pass.WithErrorHandler(errorHandler))
 	if err != nil {
 		return err
 	}
-
-	return http.ListenAndServe(":8080", r)
+	return http.ListenAndServe(":8080", proxy)
 }

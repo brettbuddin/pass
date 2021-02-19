@@ -49,10 +49,6 @@ upstream "widgets" {
     # DELETE `/api/v2/private/widgets/123` -> DELETE `http://widgets.local/widgets/123`
     route {
         methods = ["GET", "PUT", "DELETE"]
-
-        # Note: The wildcard schema used in "path" assigments is dependant on
-        # your application's router of choice. For example, this path is
-        # compatible with "github.com/go-chi/chi".
         path = "/widgets/{[0-9]+}"
     }
 }
@@ -66,10 +62,9 @@ if err != nil {
 	return err
 }
 
-// Register the manifest's routes with a router; in this case we're going to
-// use "github.com/go-chi/chi".
-r := chi.NewRouter()
-if err := pass.Mount(m, r); err != nil {
+// Register the manifest's routes with a router.
+proxy, err := pass.New(m)
+if err != nil {
 	return err
 }
 ```

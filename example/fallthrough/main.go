@@ -18,7 +18,7 @@ func main() {
 
 func run() error {
 	var manifestPath string
-	fs := flag.NewFlagSet("pass-root", flag.ExitOnError)
+	fs := flag.NewFlagSet("pass-fallthrough", flag.ExitOnError)
 	fs.StringVar(&manifestPath, "manifest", "", "HCL manifest path")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
@@ -33,7 +33,15 @@ func run() error {
 		return err
 	}
 
-	proxy, err := pass.New(m, pass.WithRoot("/api/v2"))
+	// Set up the router so that the routes specified in the manifest (proxy)
+	// take precedence over routes defined in this process (mux). This is a
+	// useful pattern if your are trying to gradually offload certain traffic
+	// from one host to another.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello from an in-process route")
+	})
+	proxy, err := pass.New(m, pass.WithNotFound(mux.ServeHTTP))
 	if err != nil {
 		return err
 	}

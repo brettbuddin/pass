@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -92,10 +91,9 @@ func TestRouting(t *testing.T) {
 	}
 
 	t.Run("plain route", func(t *testing.T) {
-		r := chi.NewRouter()
-		err := Mount(m, r)
+		proxy, err := New(m)
 		require.NoError(t, err)
-		server := httptest.NewServer(r)
+		server := httptest.NewServer(proxy)
 		defer server.Close()
 		client := &http.Client{Timeout: 1 * time.Second}
 
@@ -112,10 +110,9 @@ func TestRouting(t *testing.T) {
 	})
 
 	t.Run("parameterized route", func(t *testing.T) {
-		r := chi.NewRouter()
-		err := Mount(m, r)
+		proxy, err := New(m)
 		require.NoError(t, err)
-		server := httptest.NewServer(r)
+		server := httptest.NewServer(proxy)
 		defer server.Close()
 		client := &http.Client{Timeout: 1 * time.Second}
 
@@ -132,10 +129,9 @@ func TestRouting(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		r := chi.NewRouter()
-		err := Mount(m, r)
+		proxy, err := New(m)
 		require.NoError(t, err)
-		server := httptest.NewServer(r)
+		server := httptest.NewServer(proxy)
 		defer server.Close()
 		client := &http.Client{Timeout: 1 * time.Second}
 
@@ -148,12 +144,9 @@ func TestRouting(t *testing.T) {
 	})
 
 	t.Run("with root specified", func(t *testing.T) {
-		var r chi.Router = chi.NewRouter()
-		r = r.Route("/root", func(r chi.Router) {
-			err := Mount(m, r, WithRoot("/root"))
-			require.NoError(t, err)
-		})
-		server := httptest.NewServer(r)
+		proxy, err := New(m, WithRoot("/root"))
+		require.NoError(t, err)
+		server := httptest.NewServer(proxy)
 		defer server.Close()
 		client := &http.Client{Timeout: 1 * time.Second}
 
@@ -175,10 +168,9 @@ func TestRouting(t *testing.T) {
 			captured = info
 		}
 
-		r := chi.NewRouter()
-		err := Mount(m, r, WithObserveFunction(observe))
+		proxy, err := New(m, WithObserveFunction(observe))
 		require.NoError(t, err)
-		server := httptest.NewServer(r)
+		server := httptest.NewServer(proxy)
 		defer server.Close()
 		client := &http.Client{Timeout: 1 * time.Second}
 
@@ -207,15 +199,14 @@ func TestErrorLogging(t *testing.T) {
 		return nil, fmt.Errorf("broken transport")
 	})
 
-	r := chi.NewRouter()
 	m := manifest("http://badhost.local")
-	err := Mount(m, r,
+	proxy, err := New(m,
 		WithErrorLog(l),
 		WithTransport(transport),
 	)
 	require.NoError(t, err)
 
-	server := httptest.NewServer(r)
+	server := httptest.NewServer(proxy)
 	defer server.Close()
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 
@@ -239,15 +230,14 @@ func TestErrorHandling(t *testing.T) {
 		capturedErr = err
 	}
 
-	r := chi.NewRouter()
 	m := manifest("http://badhost.local")
-	err := Mount(m, r,
+	proxy, err := New(m,
 		WithErrorHandler(errorHandler),
 		WithTransport(transport),
 	)
 	require.NoError(t, err)
 
-	server := httptest.NewServer(r)
+	server := httptest.NewServer(proxy)
 	defer server.Close()
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 
@@ -267,9 +257,8 @@ func TestModification(t *testing.T) {
 	}))
 	defer destination.Close()
 
-	r := chi.NewRouter()
 	m := manifest(destination.URL)
-	err := Mount(m, r,
+	proxy, err := New(m,
 		WithRequestModifier(func(r *http.Request) {
 			r.Header.Add("Direction", "in")
 		}),
@@ -280,7 +269,7 @@ func TestModification(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	server := httptest.NewServer(r)
+	server := httptest.NewServer(proxy)
 	defer server.Close()
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 
@@ -296,7 +285,7 @@ func TestModification(t *testing.T) {
 
 func TestMissingSchema(t *testing.T) {
 	m := manifest("noschema.local")
-	err := Mount(m, chi.NewRouter())
+	_, err := New(m)
 	require.Error(t, err)
 	require.Equal(t, err.Error(), `missing scheme: "noschema.local"`)
 }

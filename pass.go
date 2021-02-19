@@ -3,6 +3,7 @@ package pass
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
@@ -10,6 +11,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/go-chi/chi"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 )
@@ -36,11 +38,6 @@ type Route struct {
 	Path    string   `hcl:"path"`    // HTTP Path
 }
 
-// RouteRegistrar accepts routes.
-type RouteRegistrar interface {
-	Method(method, path string, handler http.Handler)
-}
-
 // LoadManifest parses an HCL file containing the manifest.
 func LoadManifest(filename string, ectx *hcl.EvalContext) (*Manifest, error) {
 	var m Manifest
@@ -51,17 +48,30 @@ func LoadManifest(filename string, ectx *hcl.EvalContext) (*Manifest, error) {
 	return &m, nil
 }
 
-// Mount mounts a manifest to a RouteRegistrar.
-func Mount(m *Manifest, r RouteRegistrar, opts ...MountOption) error {
-	var cfg mountConfig
+// Proxy is a reverse-proxy.
+type Proxy struct {
+	router chi.Router
+}
+
+// New creates a new Proxy with the Manifest's routes mounted to it.
+func New(m *Manifest, opts ...MountOption) (*Proxy, error) {
+	proxy := &Proxy{
+		router: chi.NewRouter(),
+	}
+
+	cfg := newMountConfig()
 	for _, o := range opts {
 		o(&cfg)
 	}
 
+	if cfg.notFoundHandler != nil {
+		proxy.router.NotFound(cfg.notFoundHandler)
+	}
+
 	for _, u := range m.Upstreams {
-		proxy, err := newReverseProxy(u, cfg)
+		rproxy, err := newReverseProxy(u, cfg)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		for _, rt := range u.Routes {
@@ -84,15 +94,20 @@ func Mount(m *Manifest, r RouteRegistrar, opts ...MountOption) error {
 						UpstreamOwner:      u.Owner,
 					})
 				}
-				r.Method(
+				proxy.router.Method(
 					method,
 					path.Join(prefix, rt.Path),
-					http.StripPrefix(prefix, proxyHandler(proxy, observe)),
+					http.StripPrefix(prefix, proxyHandler(rproxy, observe)),
 				)
 			}
 		}
 	}
-	return nil
+	return proxy, nil
+}
+
+// ServeHTTP implements net/http.Handler
+func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.router.ServeHTTP(w, r)
 }
 
 // newReverseProxy creates and configures a new httputil.ReverseProxy.
@@ -260,6 +275,15 @@ func WithTransport(t http.RoundTripper) MountOption {
 	}
 }
 
+// WithNotFound specifies an http.HandlerFunc to use if no routes in the
+// manifest match. Use this for fall-through behavior to delegate to existing
+// (in-process) routes.
+func WithNotFound(h http.HandlerFunc) MountOption {
+	return func(c *mountConfig) {
+		c.notFoundHandler = h
+	}
+}
+
 // mountConfig contains realized configuration for mounting routes.
 type mountConfig struct {
 	// Pass configuration
@@ -273,4 +297,12 @@ type mountConfig struct {
 	requestModifier  RequestModifier
 	responseModifier ResponseModifier
 	transport        http.RoundTripper
+	notFoundHandler  http.HandlerFunc
+}
+
+// newMountConfig creates a mountConfig with established defaults.
+func newMountConfig() mountConfig {
+	return mountConfig{
+		errorLog: log.New(io.Discard, "", log.LstdFlags),
+	}
 }
