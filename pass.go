@@ -50,20 +50,23 @@ func LoadManifest(filename string, ectx *hcl.EvalContext) (*Manifest, error) {
 
 // Proxy is a reverse-proxy.
 type Proxy struct {
-	router chi.Router
+	manifest *Manifest
+	router   chi.Router
+	root     string
 }
 
 // New creates a new Proxy with the Manifest's routes mounted to it.
 func New(m *Manifest, opts ...MountOption) (*Proxy, error) {
-	proxy := &Proxy{
-		router: chi.NewRouter(),
-	}
-
 	cfg := newMountConfig()
 	for _, o := range opts {
 		o(&cfg)
 	}
 
+	proxy := &Proxy{
+		manifest: m,
+		router:   chi.NewRouter(),
+		root:     path.Join(cfg.root, m.PrefixPath),
+	}
 	if cfg.notFoundHandler != nil {
 		proxy.router.NotFound(cfg.notFoundHandler)
 	}
@@ -77,7 +80,7 @@ func New(m *Manifest, opts ...MountOption) (*Proxy, error) {
 		for _, rt := range u.Routes {
 			// Construct the full prefix for mounting. All of this will be
 			// stripped from the request we pass upstream.
-			prefix := path.Join(cfg.root, m.PrefixPath, u.PrefixPath)
+			prefix := path.Join(proxy.root, u.PrefixPath)
 
 			for _, method := range rt.Methods {
 				// Defer creation of the RouteInfo structure to request-time.
@@ -103,6 +106,14 @@ func New(m *Manifest, opts ...MountOption) (*Proxy, error) {
 		}
 	}
 	return proxy, nil
+}
+
+func (p *Proxy) Root() string {
+	return p.root
+}
+
+func (p *Proxy) Upstreams() []Upstream {
+	return p.manifest.Upstreams
 }
 
 // ServeHTTP implements net/http.Handler

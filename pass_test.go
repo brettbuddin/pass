@@ -146,6 +146,8 @@ func TestRouting(t *testing.T) {
 	t.Run("with root specified", func(t *testing.T) {
 		proxy, err := New(m, WithRoot("/root"))
 		require.NoError(t, err)
+		require.Equal(t, "/root/api/v2", proxy.Root())
+
 		server := httptest.NewServer(proxy)
 		defer server.Close()
 		client := &http.Client{Timeout: 1 * time.Second}
@@ -189,6 +191,12 @@ func TestRouting(t *testing.T) {
 			UpstreamIdentifier: "accounts",
 			UpstreamOwner:      "Identity <team-identity@company.com>",
 		}, captured)
+	})
+
+	t.Run("upstreams exposed", func(t *testing.T) {
+		proxy, err := New(m)
+		require.NoError(t, err)
+		require.Equal(t, m.Upstreams, proxy.Upstreams())
 	})
 }
 
