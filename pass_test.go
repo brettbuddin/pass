@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/require"
 	"github.com/zclconf/go-cty/cty"
@@ -24,49 +26,51 @@ func TestParsing(t *testing.T) {
 	m, err := LoadManifest("testdata/manifest.hcl", ectx)
 	require.NoError(t, err)
 
-	expect := &Manifest{
-		PrefixPath: "/api/v2",
+	widgets := Upstream{
+		Identifier: "widgets",
 		Annotations: map[string]string{
-			"company/version": "1",
+			"company/middleware-stack": "jwt",
 		},
-		Upstreams: []Upstream{
+		Destination:     "http://widgets.primary.local",
+		Owner:           "Team A <team-a@company.com>",
+		FlushIntervalMS: 0,
+		PrefixPath:      "/private",
+		Routes: []Route{
 			{
-				Identifier: "widgets",
-				Annotations: map[string]string{
-					"company/middleware-stack": "jwt",
-				},
-				Destination:     "http://widgets.primary.local",
-				Owner:           "Team A <team-a@company.com>",
-				FlushIntervalMS: 0,
-				PrefixPath:      "/private",
-				Routes: []Route{
-					{
-						Methods: []string{http.MethodGet},
-						Path:    "/widgets",
-					},
-				},
+				Methods: []string{http.MethodGet},
+				Path:    "/widgets",
+			},
+		},
+	}
+	bobs := Upstream{
+		Identifier:      "bobs",
+		Annotations:     map[string]string{},
+		Destination:     "http://bobs.primary.local",
+		Owner:           "Team B <team-b@company.com>",
+		FlushIntervalMS: 1000,
+		Routes: []Route{
+			{
+				Methods: []string{http.MethodGet},
+				Path:    "/bobs/{[0-9]+}",
 			},
 			{
-				Identifier:      "bobs",
-				Annotations:     map[string]string{},
-				Destination:     "http://bobs.primary.local",
-				Owner:           "Team B <team-b@company.com>",
-				FlushIntervalMS: 1000,
-				Routes: []Route{
-					{
-						Methods: []string{http.MethodGet},
-						Path:    "/bobs/{[0-9]+}",
-					},
-					{
-						Methods: []string{http.MethodGet, http.MethodPost},
-						Path:    "/bobs",
-					},
-				},
+				Methods: []string{http.MethodGet, http.MethodPost},
+				Path:    "/bobs",
 			},
 		},
 	}
 
-	require.Equal(t, expect, m)
+	expect := Manifest{
+		PrefixPath: "/api/v2",
+		Annotations: map[string]string{
+			"company/version": "1",
+		},
+		Upstreams: []Upstream{widgets, bobs},
+	}
+
+	diff := cmp.Diff(expect, *m,
+		cmpopts.IgnoreUnexported(expect))
+	require.Empty(t, diff)
 }
 
 func TestRouting(t *testing.T) {
@@ -75,27 +79,13 @@ func TestRouting(t *testing.T) {
 	}))
 	defer destination.Close()
 
-	m := &Manifest{
-		PrefixPath: "/api/v2",
-		Upstreams: []Upstream{
-			{
-				Identifier:  "accounts",
-				Owner:       "Identity <team-identity@company.com>",
-				Destination: destination.URL,
-				PrefixPath:  "/private",
-				Routes: []Route{
-					{
-						Methods: []string{http.MethodGet},
-						Path:    "/accounts/{id}",
-					},
-					{
-						Methods: []string{http.MethodGet},
-						Path:    "/accounts",
-					},
-				},
-			},
+	ectx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"destination": cty.StringVal(destination.URL),
 		},
 	}
+	m, err := LoadManifest("testdata/routing.hcl", ectx)
+	require.NoError(t, err)
 
 	t.Run("plain route", func(t *testing.T) {
 		proxy, err := New(m)
@@ -205,6 +195,36 @@ func TestRouting(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, m.Upstreams, proxy.Upstreams())
 	})
+
+	t.Run("middleware", func(t *testing.T) {
+		a := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Middleware-A", "value")
+				next.ServeHTTP(w, r)
+			})
+		}
+		b := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("Middleware-B", "value")
+				next.ServeHTTP(w, r)
+			})
+		}
+
+		proxy, err := New(m, WithMiddleware("accounts", a, b))
+		require.NoError(t, err)
+		server := httptest.NewServer(proxy)
+		defer server.Close()
+		client := &http.Client{Timeout: 1 * time.Second}
+
+		req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v2/private/accounts", nil)
+		require.NoError(t, err)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "value", resp.Header.Get("Middleware-A"), "middleware A header missing")
+		require.Equal(t, "value", resp.Header.Get("Middleware-B"), "middleware B header missing")
+	})
 }
 
 func TestErrorLogging(t *testing.T) {
@@ -214,7 +234,13 @@ func TestErrorLogging(t *testing.T) {
 		return nil, fmt.Errorf("broken transport")
 	})
 
-	m := manifest("http://badhost.local")
+	ectx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"destination": cty.StringVal("http://badhost.local"),
+		},
+	}
+	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	require.NoError(t, err)
 	proxy, err := New(m,
 		WithErrorLog(l),
 		WithTransport(transport),
@@ -245,7 +271,13 @@ func TestErrorHandling(t *testing.T) {
 		capturedErr = err
 	}
 
-	m := manifest("http://badhost.local")
+	ectx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"destination": cty.StringVal("http://badhost.local"),
+		},
+	}
+	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	require.NoError(t, err)
 	proxy, err := New(m,
 		WithErrorHandler(errorHandler),
 		WithTransport(transport),
@@ -272,7 +304,13 @@ func TestModification(t *testing.T) {
 	}))
 	defer destination.Close()
 
-	m := manifest(destination.URL)
+	ectx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"destination": cty.StringVal(destination.URL),
+		},
+	}
+	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	require.NoError(t, err)
 	proxy, err := New(m,
 		WithRequestModifier(func(r *http.Request) {
 			r.Header.Add("Direction", "in")
@@ -298,11 +336,16 @@ func TestModification(t *testing.T) {
 	require.Equal(t, "in", requestHeader)
 }
 
-func TestMissingSchema(t *testing.T) {
-	m := manifest("noschema.local")
-	_, err := New(m)
+func TestMissingScheme(t *testing.T) {
+	ectx := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"destination": cty.StringVal("noscheme.local"),
+		},
+	}
+	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	_, err = New(m)
 	require.Error(t, err)
-	require.Equal(t, err.Error(), `missing scheme: "noschema.local"`)
+	require.Equal(t, err.Error(), `missing scheme: "noscheme.local"`)
 }
 
 func TestEmptyRoot(t *testing.T) {
@@ -312,26 +355,21 @@ func TestEmptyRoot(t *testing.T) {
 	require.Equal(t, "/", proxy.Root())
 }
 
+func TestDuplicateUpstreamIdentifier(t *testing.T) {
+	_, err := LoadManifest("testdata/duplicate_identifier.hcl", nil)
+	require.Error(t, err)
+	require.Equal(t, `duplicate upstream identifier: "widgets"`, err.Error())
+}
+
+func TestMissingUpstreamForMiddleware(t *testing.T) {
+	m, err := LoadManifest("testdata/basic.hcl", nil)
+	_, err = New(m, WithMiddleware("doesnt-exist", nil))
+	require.Error(t, err)
+	require.Equal(t, `upstream missing for middleware stack: "doesnt-exist"`, err.Error())
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return f(r)
-}
-
-func manifest(destination string) *Manifest {
-	return &Manifest{
-		Upstreams: []Upstream{
-			{
-				Identifier:  "accounts",
-				Owner:       "Identity <team-identity@company.com>",
-				Destination: destination,
-				Routes: []Route{
-					{
-						Methods: []string{http.MethodGet},
-						Path:    "/accounts",
-					},
-				},
-			},
-		},
-	}
 }
