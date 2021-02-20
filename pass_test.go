@@ -27,11 +27,14 @@ func TestParsing(t *testing.T) {
 	expect := &Manifest{
 		PrefixPath: "/api/v2",
 		Annotations: map[string]string{
-			"version": "1",
+			"company/version": "1",
 		},
 		Upstreams: []Upstream{
 			{
-				Identifier:      "widgets",
+				Identifier: "widgets",
+				Annotations: map[string]string{
+					"company/middleware-stack": "jwt",
+				},
 				Destination:     "http://widgets.primary.local",
 				Owner:           "Team A <team-a@company.com>",
 				FlushIntervalMS: 0,
@@ -45,6 +48,7 @@ func TestParsing(t *testing.T) {
 			},
 			{
 				Identifier:      "bobs",
+				Annotations:     map[string]string{},
 				Destination:     "http://bobs.primary.local",
 				Owner:           "Team B <team-b@company.com>",
 				FlushIntervalMS: 1000,

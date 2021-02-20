@@ -1,13 +1,17 @@
 prefix_path = "/api/v2"
 
 annotations = {
-    version: 1
+    "company/version": 1
 }
 
 upstream "widgets" {
     destination = "http://widgets.${namespace}.local" 
     owner = "Team A <team-a@company.com>"
     prefix_path = "/private"
+
+    annotations = {
+        "company/middleware-stack": "jwt"
+    }
 
     route {
         methods = ["GET"]

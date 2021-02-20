@@ -25,12 +25,13 @@ type Manifest struct {
 
 // Upstream is an upstream service in which to proxy.
 type Upstream struct {
-	Identifier      string  `hcl:",label"`                     // Human identifier for the upstream
-	Destination     string  `hcl:"destination"`                // Scheme and Hostname of the upstream component
-	Routes          []Route `hcl:"route,block"`                // Routes to accept
-	FlushIntervalMS int     `hcl:"flush_interval_ms,optional"` // httputil.ReverseProxy.FlushInterval value in milliseconds
-	Owner           string  `hcl:"owner,optional"`             // Team that owns the upstream component
-	PrefixPath      string  `hcl:"prefix_path,optional"`       // Prefix to add to all routes. Stripped when proxying.
+	Identifier      string            `hcl:",label"`                     // Human identifier for the upstream
+	Annotations     map[string]string `hcl:"annotations,optional"`       // Annotations to be used by other libraries
+	Destination     string            `hcl:"destination"`                // Scheme and Hostname of the upstream component
+	Routes          []Route           `hcl:"route,block"`                // Routes to accept
+	FlushIntervalMS int               `hcl:"flush_interval_ms,optional"` // httputil.ReverseProxy.FlushInterval value in milliseconds
+	Owner           string            `hcl:"owner,optional"`             // Team that owns the upstream component
+	PrefixPath      string            `hcl:"prefix_path,optional"`       // Prefix to add to all routes. Stripped when proxying.
 }
 
 // Route is an individual HTTP method/path combination in which to proxy.
@@ -46,8 +47,16 @@ func LoadManifest(filename string, ectx *hcl.EvalContext) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Establish defaults for annotation maps so the caller can simply ask about
+	// keys without caring about nil values.
 	if m.Annotations == nil {
 		m.Annotations = map[string]string{}
+	}
+	for i := range m.Upstreams {
+		if m.Upstreams[i].Annotations == nil {
+			m.Upstreams[i].Annotations = map[string]string{}
+		}
 	}
 	return &m, nil
 }
