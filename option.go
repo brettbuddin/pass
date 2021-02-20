@@ -75,7 +75,8 @@ func WithResponseModifier(fn ResponseModifier) MountOption {
 }
 
 // WithMiddleware registers a middleware stack for an upstream identifier (from
-// the Manifest). Middlewares are applied in-order.
+// the Manifest). When the Upstream's routes are registered these middleware
+// will be applied along with them. Middlewares are applied in-order.
 func WithMiddleware(upstream string, m ...func(http.Handler) http.Handler) MountOption {
 	return func(c *mountConfig) {
 		c.middleware[upstream] = m
