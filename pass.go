@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi"
 )
 
+// ErrMissingUpstreamForMiddleware is returned when the Upstream referenced by a
+// middleware stack doesn't exist in the Manifest.
 var ErrMissingUpstreamForMiddleware = fmt.Errorf("upstream missing for middleware stack")
 
 // Proxy is a reverse-proxy.

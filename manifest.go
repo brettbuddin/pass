@@ -7,6 +7,8 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsimple"
 )
 
+// ErrDuplicateUpstreamIdentifier is returned when there more than one Upstream
+// in a Manifest with the same identifier.
 var ErrDuplicateUpstreamIdentifier = fmt.Errorf("duplicate upstream identifier")
 
 // Manifest is a list of upstream services in which to proxy.

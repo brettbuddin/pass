@@ -239,7 +239,7 @@ func TestErrorLogging(t *testing.T) {
 			"destination": cty.StringVal("http://badhost.local"),
 		},
 	}
-	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	m, err := LoadManifest("testdata/basic_destination.hcl", ectx)
 	require.NoError(t, err)
 	proxy, err := New(m,
 		WithErrorLog(l),
@@ -276,7 +276,7 @@ func TestErrorHandling(t *testing.T) {
 			"destination": cty.StringVal("http://badhost.local"),
 		},
 	}
-	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	m, err := LoadManifest("testdata/basic_destination.hcl", ectx)
 	require.NoError(t, err)
 	proxy, err := New(m,
 		WithErrorHandler(errorHandler),
@@ -309,7 +309,7 @@ func TestModification(t *testing.T) {
 			"destination": cty.StringVal(destination.URL),
 		},
 	}
-	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	m, err := LoadManifest("testdata/basic_destination.hcl", ectx)
 	require.NoError(t, err)
 	proxy, err := New(m,
 		WithRequestModifier(func(r *http.Request) {
@@ -342,7 +342,8 @@ func TestMissingScheme(t *testing.T) {
 			"destination": cty.StringVal("noscheme.local"),
 		},
 	}
-	m, err := LoadManifest("testdata/basic_routing.hcl", ectx)
+	m, err := LoadManifest("testdata/basic_destination.hcl", ectx)
+	require.NoError(t, err)
 	_, err = New(m)
 	require.Error(t, err)
 	require.Equal(t, err.Error(), `missing scheme: "noscheme.local"`)
@@ -363,6 +364,7 @@ func TestDuplicateUpstreamIdentifier(t *testing.T) {
 
 func TestMissingUpstreamForMiddleware(t *testing.T) {
 	m, err := LoadManifest("testdata/basic.hcl", nil)
+	require.NoError(t, err)
 	_, err = New(m, WithMiddleware("doesnt-exist", nil))
 	require.Error(t, err)
 	require.Equal(t, `upstream missing for middleware stack: "doesnt-exist"`, err.Error())
