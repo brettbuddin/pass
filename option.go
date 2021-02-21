@@ -139,6 +139,7 @@ type mountConfig struct {
 	root                string
 	upstreamMiddleware  map[string][]func(http.Handler) http.Handler
 	keepTrailingSlashes bool
+	notFoundHandler     http.HandlerFunc
 
 	// httputil.ReverseProxy configuration
 	bufferPool       httputil.BufferPool
@@ -147,7 +148,6 @@ type mountConfig struct {
 	requestModifier  RequestModifier
 	responseModifier ResponseModifier
 	transport        http.RoundTripper
-	notFoundHandler  http.HandlerFunc
 }
 
 // newMountConfig creates a mountConfig with established defaults.
