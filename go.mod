@@ -9,4 +9,5 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/zclconf/go-cty v1.2.0
 	go.uber.org/zap v1.16.0
+	honnef.co/go/tools v0.1.2 // indirect
 )
