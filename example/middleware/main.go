@@ -45,7 +45,7 @@ func run() error {
 	// Apply the middleware stack to each Upstream in the Manifest.
 	var opts []pass.MountOption
 	for _, u := range m.Upstreams {
-		opts = append(opts, pass.WithMiddleware(u.Identifier, middlewares...))
+		opts = append(opts, pass.WithUpstreamMiddleware(u.Identifier, middlewares...))
 	}
 
 	proxy, err := pass.New(m, opts...)
