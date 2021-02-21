@@ -124,9 +124,9 @@ func WithNotFound(h http.HandlerFunc) MountOption {
 	}
 }
 
-// KeepTraliingSlashes forces trailing slashes to be unhandled. By default, the
+// WithTrailingSlashes forces trailing slashes to be unhandled. By default, the
 // Proxy will strip trailing slashes where appropriate.
-func KeepTrailingSlashes() MountOption {
+func WithTrailingSlashes() MountOption {
 	return func(c *mountConfig) {
 		c.keepTrailingSlashes = true
 	}
