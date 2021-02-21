@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
 // ErrMissingUpstreamForMiddleware is returned when the Upstream referenced by a
@@ -31,40 +32,45 @@ func New(m *Manifest, opts ...MountOption) (*Proxy, error) {
 	}
 
 	// Verify that the middleware stacks reference real upstreams
-	for k := range cfg.middleware {
+	for k := range cfg.upstreamMiddleware {
 		if _, ok := m.upstreamIndex[k]; !ok {
 			return nil, fmt.Errorf("%w: %q", ErrMissingUpstreamForMiddleware, k)
 		}
 	}
 
-	proxy := &Proxy{
-		manifest: m,
-		router:   chi.NewRouter(),
-		root:     path.Join(cfg.root, m.PrefixPath),
+	router := chi.NewRouter()
+	if !cfg.keepTrailingSlashes {
+		router.Use(middleware.StripSlashes)
 	}
 	if cfg.notFoundHandler != nil {
-		proxy.router.NotFound(cfg.notFoundHandler)
+		router.NotFound(cfg.notFoundHandler)
 	}
+
+	rootPath := path.Join(cfg.root, m.PrefixPath)
 
 	for _, u := range m.Upstreams {
 		var err error
-		proxy.router.Group(func(r chi.Router) {
-			if mstack, ok := cfg.middleware[u.Identifier]; ok {
+		router.Group(func(r chi.Router) {
+			if mstack, ok := cfg.upstreamMiddleware[u.Identifier]; ok {
 				r.Use(mstack...)
 			}
-			err = mount(r, proxy.root, u, cfg)
+			err = mount(r, rootPath, u, cfg)
 		})
 		if err != nil {
 			return nil, err
 		}
 	}
-	return proxy, nil
+
+	return &Proxy{
+		manifest: m,
+		router:   router,
+		root:     rootPath,
+	}, nil
 }
 
 func mount(router chi.Router, rootPath string, u Upstream, cfg mountConfig) error {
 	rproxy, err := newReverseProxy(u, cfg)
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 

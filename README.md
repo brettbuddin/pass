@@ -14,42 +14,73 @@ configured outside of your binary's code—such as Kubernetes `ConfigMap`
 definitions.
 
 ```hcl
-# Base prefix for all upstream routes. (optional)
+// Base prefix for all upstream routes. (optional)
 prefix_path = "/api/v2"
 
-# Define an upstream service called "widgets". The identifier here is just a
-# human readable string to refer to this service. For instance, you could use
-# this identifier when tagging metrics.
+// Annotations for this Manifest that can be used by other libraries once
+// this Manifest is parsed. Similar to Kubernetes Annotations, they enable other
+// libraries and tooling to apply meaning to the Manifest. These values are
+// arbitrary to the pass library.
+annotations = {
+    "company/version": 2
+}
+
+// Define an upstream service called "widgets". The identifier here is just a
+// human readable string to refer to this service. For instance, you could use
+// this identifier when tagging metrics.
 upstream "widgets" {
-    # Location in the form of "scheme://hostname" to send the traffic.
+    // Annotations for this upstream destination.
+    annotations = {
+        "company/middleware": "jwt,tracing"
+    }
+
+    // Location in the form of "scheme://hostname" to send the traffic.
     destination = "http://widgets.local" 
 
-    # Team identifier to help keep track of who's the point of contact for a
-    # particular upstream service. (optional)
+    // Team identifier to help keep track of who's the point of contact for a
+    // particular upstream service. (optional)
     owner = "Team A <team-a@company.com>"
 
-    # Inform the reverse-proxy to flush the response body every second. If this
-    # is omitted, no flushing will be peformed. A negative value will flush
-    # immediately after each write to the client. (optional)
+    // Inform the reverse-proxy to flush the response body every second. If this
+    // is omitted, no flushing will be peformed. A negative value will flush
+    // immediately after each write to the client. (optional)
     flush_interval_ms = 1000
 
-    # Add an additional prefix segment (added to the root level `prefix_path`)
-    # that should be stripped from outgoing requests. (optional)
+    // Add an additional prefix segment (added to the root level `prefix_path`)
+    // that should be stripped from outgoing requests. (optional)
     prefix_path = "/private"
 
-    # GET `/api/v2/private/widgets` -> GET `http://widgets.local/widgets`
-    # POST `/api/v2/private/widgets` -> POST `http://widgets.local/widgets`
+    // GET `/api/v2/private/widgets` -> GET `http://widgets.local/widgets`
+    // POST `/api/v2/private/widgets` -> POST `http://widgets.local/widgets`
     route {
         methods = ["GET", "POST"]
         path = "/widgets"
     }
 
-    # GET `/api/v2/private/widgets/123` -> GET `http://widgets.local/widgets/123`
-    # PUT `/api/v2/private/widgets/123` -> PUT `http://widgets.local/widgets/123`
-    # DELETE `/api/v2/private/widgets/123` -> DELETE `http://widgets.local/widgets/123`
+    // GET `/api/v2/private/widgets/123` -> GET `http://widgets.local/widgets/123`
+    // PUT `/api/v2/private/widgets/123` -> PUT `http://widgets.local/widgets/123`
+    // DELETE `/api/v2/private/widgets/123` -> DELETE `http://widgets.local/widgets/123`
     route {
         methods = ["GET", "PUT", "DELETE"]
         path = "/widgets/{[0-9]+}"
+    }
+}
+
+upstream "gears" {
+    destination = "http://gears.local" 
+    owner = "Team B <team-b@company.com>"
+    prefix_path = "/gears"
+
+    // ANY METHOD /api/v2/gears/anything -> http://gears.local/api/v2/gears/anything
+    route {
+        methods = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+        path = "/*"
+    }
+
+    // ANY METHOD /api/v2/gears -> http://gears.local/api/v2/gears
+    route {
+        methods = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+        path = "/"
     }
 }
 ```

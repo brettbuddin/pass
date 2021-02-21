@@ -210,7 +210,7 @@ func TestRouting(t *testing.T) {
 			})
 		}
 
-		proxy, err := New(m, WithMiddleware("accounts", a, b))
+		proxy, err := New(m, WithUpstreamMiddleware("accounts", a, b))
 		require.NoError(t, err)
 		server := httptest.NewServer(proxy)
 		defer server.Close()
@@ -365,7 +365,7 @@ func TestDuplicateUpstreamIdentifier(t *testing.T) {
 func TestMissingUpstreamForMiddleware(t *testing.T) {
 	m, err := LoadManifest("testdata/basic.hcl", nil)
 	require.NoError(t, err)
-	_, err = New(m, WithMiddleware("doesnt-exist", nil))
+	_, err = New(m, WithUpstreamMiddleware("doesnt-exist", nil))
 	require.Error(t, err)
 	require.Equal(t, `upstream missing for middleware stack: "doesnt-exist"`, err.Error())
 }

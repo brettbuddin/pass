@@ -74,12 +74,12 @@ func WithResponseModifier(fn ResponseModifier) MountOption {
 	}
 }
 
-// WithMiddleware registers a middleware stack for an upstream identifier (from
+// WithUpstreamMiddleware registers a middleware stack for an upstream identifier (from
 // the Manifest). When the Upstream's routes are registered these middleware
 // will be applied along with them. Middlewares are applied in-order.
-func WithMiddleware(upstream string, m ...func(http.Handler) http.Handler) MountOption {
+func WithUpstreamMiddleware(upstream string, m ...func(http.Handler) http.Handler) MountOption {
 	return func(c *mountConfig) {
-		c.middleware[upstream] = m
+		c.upstreamMiddleware[upstream] = m
 	}
 }
 
@@ -124,12 +124,21 @@ func WithNotFound(h http.HandlerFunc) MountOption {
 	}
 }
 
+// KeepTraliingSlashes forces trailing slashes to be unhandled. By default, the
+// Proxy will strip trailing slashes where appropriate.
+func KeepTrailingSlashes() MountOption {
+	return func(c *mountConfig) {
+		c.keepTrailingSlashes = true
+	}
+}
+
 // mountConfig contains realized configuration for mounting routes.
 type mountConfig struct {
 	// Pass configuration
-	observe    ObserveFunction
-	root       string
-	middleware map[string][]func(http.Handler) http.Handler
+	observe             ObserveFunction
+	root                string
+	upstreamMiddleware  map[string][]func(http.Handler) http.Handler
+	keepTrailingSlashes bool
 
 	// httputil.ReverseProxy configuration
 	bufferPool       httputil.BufferPool
@@ -144,7 +153,7 @@ type mountConfig struct {
 // newMountConfig creates a mountConfig with established defaults.
 func newMountConfig() mountConfig {
 	return mountConfig{
-		errorLog:   log.New(io.Discard, "", log.LstdFlags),
-		middleware: map[string][]func(http.Handler) http.Handler{},
+		errorLog:           log.New(io.Discard, "", log.LstdFlags),
+		upstreamMiddleware: map[string][]func(http.Handler) http.Handler{},
 	}
 }
